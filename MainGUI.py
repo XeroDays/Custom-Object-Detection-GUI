@@ -1,6 +1,6 @@
 
-from PyQt5.QtCore import QObject, QThread, pyqtSignal, QTimer, QSortFilterProxyModel, QRegularExpression, QEvent, QModelIndex, pyqtSlot
-from PyQt5.QtWidgets import QFileSystemModel, QAction, QWidget, QFileDialog, QDialog, QAbstractItemView
+from PyQt5.QtCore import QObject, QThread, pyqtSignal, QTimer, QSortFilterProxyModel, QRegularExpression, QEvent, QModelIndex, pyqtSlot, QSettings, Qt
+from PyQt5.QtWidgets import QFileSystemModel, QAction, QWidget, QFileDialog, QDialog, QAbstractItemView, QPushButton
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from create_Project import createproject
 from PyQt5.QtGui import QPixmap, QImage
@@ -10,6 +10,7 @@ from PyQt5 import uic, QtWidgets
 from detect import downloadmodel
 import matplotlib.pyplot as plt
 from TF_Detect import Detector
+from functools import partial
 from finder import finder
 import numpy as np
 import find_files
@@ -224,6 +225,12 @@ class App(QtWidgets.QMainWindow):
         self.reg_loss_rt = []
         self.graph_type = 0
         
+        self.model_name = ''
+        self.label_path = ''
+        self.checkpoint_path = ''
+
+        self.persistance = QSettings('Object Detection GUI', 'SS Programs')
+       
         #Logger Setup
         logger.info("GUI Started")
         
@@ -240,9 +247,12 @@ class App(QtWidgets.QMainWindow):
         self.projectfolder = None
         self.mouse = 0 
         
+
+        self.ui.folderAdd.clicked.connect
+        self.projectPage()
         
         # PAGE 1 button click event handler 
-        self.ui.page1_btn.clicked.connect(lambda: self.ui.formStackedWidget.setCurrentWidget(self.ui.modeltrainpage))
+        self.ui.page1_btn.clicked.connect(lambda: self.ui.formStackedWidget.setCurrentWidget(self.ui.modelselectpage))
         self.page1()
 
         # PAGE 2 button click event handler 
@@ -286,6 +296,10 @@ class App(QtWidgets.QMainWindow):
         createAction = QAction("Create New Project", self)
         createAction.triggered.connect(self.createproj)
         self.ui.menuFile.addAction(createAction)
+
+        propertiesAction = QAction("Edit Model Properties", self)
+        propertiesAction.triggered.connect(lambda: self.ui.formStackedWidget.setCurrentWidget(self.ui.modeltrainpage))
+        self.ui.menuProperties.addAction(propertiesAction)
         
         helpAction = QAction("Help", self)
         helpAction.triggered.connect(self.help)
@@ -302,7 +316,15 @@ class App(QtWidgets.QMainWindow):
         self.projectfolder = (QFileDialog.getExistingDirectory(self, 'Open File', os.path.expanduser("~")))
         logger.info(f"Opened Folder: {self.projectfolder}")
         self.addprojet()
-     
+
+    # ================================================= #
+    # Function used to set the project directory        #
+    # ================================================= #
+    def setProjectDir(self):
+        self.projectfolder = (QFileDialog.getExistingDirectory(self, 'Open File', os.path.expanduser("~")))
+        logger.info(f"Set project directory to: {self.projectfolder}")
+        self.persistance.setValue('project folder', self.projectfolder)
+
     # ================================================= #
     # Function used to call the create project dialog.  #
     # ================================================= #   
@@ -332,12 +354,18 @@ class App(QtWidgets.QMainWindow):
         self.projectfolder = folder
         self.autofind()
         self.addprojet()
+
+        # Updating project list
+        self.projectPage()
         
     # ================================================================ #
     # Function used to load and display project folder in QTTreeView   #
     # ================================================================ #    
-    def addprojet(self):
-        path = self.projectfolder
+    def addprojet(self, folder = None):
+        if folder is not None:
+            path = folder
+        else:
+            path = self.projectfolder
         self.ui.ProjectView.setDragDropMode(QAbstractItemView.InternalMove)
         
         self.ui.ProjectView.clicked.connect(self.on_treeView_clicked)
@@ -353,7 +381,7 @@ class App(QtWidgets.QMainWindow):
         self.ui.ProjectView.setColumnWidth(0, 300)
         self.ui.ProjectView.setRootIndex(self.filter.mapFromSource(root_pth))
         
-        folders = self.projectfolder.split("/")
+        #folders = self.projectfolder.split("/")
         
         
     
@@ -370,8 +398,72 @@ class App(QtWidgets.QMainWindow):
 
         self.dragdata = filePath
         
+    # Function used to automate path finding for files/folders needed to 
+    # load the model training program properly. If create project used this
+    # is called automatically and all empty paths should be filled.
+    def autofind(self, folder = None):
+        if folder is not None:
+            searchfolder = folder
+        elif self.projectfolder is not None:
+            searchfolder = self.projectfolder
+        else:
+            searchfolder = QFileDialog.getExistingDirectory(self, 'Open File', os.path.expanduser("~"))
+        find = finder(searchfolder)
+        locations = find.get_locations()
         
-        
+        self.pipeline = locations[2]
+        #Setting model parameters 
+        self.ui.image_path_3.setText(     locations[0])
+        self.ui.annot_path_3.setText(     locations[1])
+        self.ui.train_record_3.setText(   locations[3])
+        self.ui.test_record_3.setText(    locations[4])
+        self.ui.result_path_3.setText(    locations[5])
+        self.ui.label_path_3.setText(     locations[6])
+        self.ui.modelname_3.setText(      locations[7])
+        self.ui.model_path_3.setText(     locations[8])
+        self.ui.test_path_3.setText(      locations[9])
+        self.ui.train_path_3.setText(     locations[9])
+        self.ui.source_img_width.setText( locations[10])
+        self.ui.source_img_height.setText(locations[11])
+
+        #Eval parameters
+        self.model_name = locations[7]
+        self.label_path = locations[6]
+        self.checkpoint_path = locations[8]
+
+
+    # ================================================================ #
+    # Function used to select and load project on click                #
+    # ================================================================ #
+    def setProject(self, name):
+        project_folder = os.path.join(self.persistance.value('project folder'), name)
+        self.autofind(folder = project_folder)
+        self.addprojet(folder = project_folder)
+
+    # ================================================================ #
+    # Function used to find and add all projects in directory to main 
+    # model selection page.                                            #
+    # ================================================================ # 
+    #TODO add page if more than x folders exist 
+    def projectPage(self):
+        self.foldercount = 0
+        self.folders = {}
+        if self.persistance.contains('project folder'):
+            for dir in os.listdir(self.persistance.value('project folder')):
+                self.folders[dir] = QPushButton(dir)
+                self.folders[dir].setFixedSize(100,100)
+                self.folders[dir].setStyleSheet("background-color:#6793b5;") 
+                self.modelgrid.addWidget(self.folders[dir], 1 + self.foldercount // 4, self.foldercount % 4, 1,1, Qt.AlignCenter)
+                self.foldercount+=1
+
+        else:
+            self.btn  = QPushButton("Set Project Directory")
+            self.modelgrid.addWidget(self.btn, 1, 3, 2,1,)
+            self.btn.clicked.connect(lambda: self.setProjectDir())
+        for i in self.folders:
+            self.folders[i].clicked.connect(partial(self.setProject, i))
+
+
     # PAGE 1 use to fill all file paths for model train program
     def page1(self):
         # BUTTON CLICK FUNCTIONS ON PAGE 1 
@@ -442,20 +534,8 @@ class App(QtWidgets.QMainWindow):
         
     #Funciton to handle button clicks on the evaluation page
     def page5(self):
-        self.ui.modelname_eval_btn.clicked.connect(lambda: self.ui.modelname_eval.setText((QFileDialog.getOpenFileName(self, 'Open File', os.path.expanduser("~")))[0]))
-        self.ui.modelname_eval.installEventFilter(self)
-        
-        self.ui.pipepath_eval_btn.clicked.connect(lambda: self.ui.pipeline_path_eval.setText((QFileDialog.getOpenFileName(self, 'Open File', os.path.expanduser("~")))[0]))
-        self.ui.pipeline_path_eval.installEventFilter(self)
-        
-        self.ui.checkpath_eval_btn.clicked.connect(lambda: self.ui.checkpoint_path_eval.setText((QFileDialog.getExistingDirectory(self, 'Open File', os.path.expanduser("~")))))
-        self.ui.checkpoint_path_eval.installEventFilter(self)
-        
         self.ui.imgpath_eval_btn.clicked.connect(lambda: self.ui.image_path_eval.setText((QFileDialog.getOpenFileName(self, 'Open File', os.path.expanduser("~")))[0]))
         self.ui.image_path_eval.installEventFilter(self)
-        
-        self.ui.lablepath_eval_btn.clicked.connect(lambda: self.ui.label_path_eval.setText((QFileDialog.getOpenFileName(self, 'Open File', os.path.expanduser("~")))[0]))
-        self.ui.label_path_eval.installEventFilter(self)
         
         self.ui.Save_path_btn.clicked.connect(lambda: self.ui.save_path.setText((QFileDialog.getExistingDirectory(self, 'Open File', os.path.expanduser("~")))))
         self.ui.eval_button.clicked.connect(lambda: self.evalmodel())
@@ -734,19 +814,19 @@ class App(QtWidgets.QMainWindow):
     # Function used to evaluate model on a image/camera stream    #
     # =========================================================== #  
     def evalmodel(self):
-        if len(self.ui.modelname_eval.text()) == 0:
+        if len(self.model_name) < 1:
             self.ui.Error_label.setText("Error: EVALUATION - Model name input not filled out. Missing path")
             self.ui.eval_status.setText('Status: Error')
             
-        elif len(self.ui.checkpoint_path_eval.text()) == 0:
+        elif len(self.checkpoint_path) < 1:
             self.ui.Error_label.setText("Error: EVALUATION - Checkpoint path input not filled out. Missing path")
             self.ui.eval_status.setText('Status: Error')
             
-        elif len(self.ui.pipeline_path_eval.text()) == 0:
+        elif len(self.pipeline) < 1:
             self.ui.Error_label.setText("Error: EVALUATION - Pipeline path input not filled out. Missing path")
             self.ui.eval_status.setText('Status: Error')
         
-        elif len(self.ui.label_path_eval.text()) == 0:
+        elif len(self.label_path) < 1:
             self.ui.Error_label.setText("Error: EVALUATION - Label path input not filled out. Missing path")
             self.ui.eval_status.setText('Status: Error')
             
@@ -773,16 +853,16 @@ class App(QtWidgets.QMainWindow):
         elif self.ui.video_eval.isChecked() and not self.ui.image_eval.isChecked():
             try:
                 det = Detector(1, 
-                       self.ui.modelname_eval.text(),
-                       self.ui.checkpoint_path_eval.text(),
-                       self.ui.pipeline_path_eval.text(),
-                       self.ui.label_path_eval.text(),
+                       self.model_name,
+                       self.checkpoint_path,
+                       self.pipeline,
+                       self.label_path,
                        int(self.ui.checkpoint_num.text()),
                        False,
                        self.ui.save_path.text(),
                        self.ui.image_path_eval.text()
                        )
-                logger.info(f"Evaulating: {self.ui.modelname_eval.text()} on image: {self.ui.image_path_eval.text()}")
+                logger.info(f"Evaulating: {self.model_name} on image: {self.ui.image_path_eval.text()}")
 
                 # Create New Thread for evaluation
                 self.dia = self.dialog_open(det)
@@ -817,16 +897,16 @@ class App(QtWidgets.QMainWindow):
         elif not self.ui.video_eval.isChecked() and self.ui.image_eval.isChecked():
             try:
                 det = Detector(0, 
-                       self.ui.modelname_eval.text(),
-                       self.ui.checkpoint_path_eval.text(),
-                       self.ui.pipeline_path_eval.text(),
-                       self.ui.label_path_eval.text(),
+                       self.model_name,
+                       self.checkpoint_path,
+                       self.pipeline,
+                       self.label_path,
                        int(self.ui.checkpoint_num.text()),
                        False,
                        self.ui.save_path.text(),
                        self.ui.image_path_eval.text()
                        )
-                logger.info(f"Evaulating: {self.ui.modelname_eval.text()} on image: {self.ui.image_path_eval.text()}")
+                logger.info(f"Evaulating: {self.model_name} on image: {self.ui.image_path_eval.text()}")
 
                 # Create New Thread for evaluation
                 self.dia = self.dialog_open(det)
@@ -862,7 +942,7 @@ class App(QtWidgets.QMainWindow):
             self.ui.running_status.setText('Status: ERROR')
             self.ui.Error_label.setText(f"Error")
             logger.critical(f"Unknown state acheived on Evaluation step.\n",
-                            f"Model selected: {self.ui.modelname_eval.text()}\n",
+                            f"Model selected: {self.model_name}\n",
                             f"Checkpoint {int(self.ui.checkpoint_num.text())}\n")
 
 
@@ -882,35 +962,6 @@ class App(QtWidgets.QMainWindow):
         dialog.show()
         return dialog
         
-    # Function used to automate path finding for files/folders needed to 
-    # load the model training program properly. If create project used this
-    # is called automatically and all empty paths should be filled.
-    def autofind(self):
-        if self.projectfolder is not None:
-            searchfolder = self.projectfolder
-        else:
-            searchfolder = QFileDialog.getExistingDirectory(self, 'Open File', os.path.expanduser("~"))
-        find = finder(searchfolder)
-        locations = find.get_locations()
-        
-        self.pipeline = locations[2]
-        
-        self.ui.image_path_3.setText(     locations[0])
-        self.ui.annot_path_3.setText(     locations[1])
-        self.ui.train_record_3.setText(   locations[3])
-        self.ui.test_record_3.setText(    locations[4])
-        self.ui.result_path_3.setText(    locations[5])
-        self.ui.label_path_3.setText(     locations[6])
-        self.ui.modelname_3.setText(      locations[7])
-        self.ui.model_path_3.setText(     locations[8])
-        self.ui.test_path_3.setText(      locations[9])
-        self.ui.train_path_3.setText(     locations[9])
-        self.ui.source_img_width.setText( locations[10])
-        self.ui.source_img_height.setText(locations[11])
-        
-        
-        
-    
     # Function used to terminate the TF program when the GUI is exited
     def close(self):
         try:
@@ -1000,6 +1051,19 @@ class App(QtWidgets.QMainWindow):
 
                     self.ui.running_status.setText('Status: Complete')
                     self.ui.Error_label.setText("Error: None")
+                
+                #Running model evaluation every X steps as defined by user
+                # default 10,000
+                if (int(parse1[1]) % int(self.ui.eval_steps_num.text())) == 0:
+                    self.close()
+                    logger.info("Training Pause. Evaluation Starting...")
+                    self.model.eval_runner()
+
+                    #TODO emit and watch for end of evaluation then runmodel()
+                    time.sleep(10)
+                    self.runmodel()
+                    logger.info("Evaluation Complete. Restarting Model Training")
+
 
 
         # Centernet model type        
@@ -1008,7 +1072,7 @@ class App(QtWidgets.QMainWindow):
                 parse1 = info.split("{")
                 parse2 = parse1[1].split(":")
                 self.ui.Box_Class_Localize.setText("Box Offset")
-                self.ui.Box_loss_btn.setText("Box Offset")
+                self.ui.box_loss_btn.setText("Box Offset")
                 self.ui.BC_loc_loss_value.setText(str(parse2[1].replace(",","")))
                 self.bc_localization_rt.append(float(parse2[1].replace(",","")))
             
@@ -1050,6 +1114,17 @@ class App(QtWidgets.QMainWindow):
 
                     self.ui.running_status.setText('Status: Complete')
                     self.ui.Error_label.setText("Error: None")
+                #Running model evaluation every X steps as defined by user
+                # default 10,000
+                if (int(parse1[1]) % int(self.ui.eval_steps_num.text())) == 0:
+                    self.close()
+                    logger.info("Training Pause. Evaluation Starting...")
+                    self.model.eval_runner()
+
+                    #TODO emit and watch for end of evaluation then runmodel()
+                    time.sleep(10)
+                    self.runmodel()
+                    logger.info("Evaluation Complete. Restarting Model Training")
 
         # SSD model type        
         if self.model_type == 3:
@@ -1057,7 +1132,7 @@ class App(QtWidgets.QMainWindow):
                 parse1 = info.split("{")
                 parse2 = parse1[1].split(":")
                 self.ui.Box_Class_Localize.setText("Classification")
-                self.ui.Box_loss_btn.setText("Classification Loss")
+                self.ui.box_loss_btn.setText("Classification Loss")
                 self.ui.BC_loc_loss_value.setText(str(parse2[1].replace(",","")))
                 self.bc_localization_rt.append(float(parse2[1].replace(",","")))
             
@@ -1098,6 +1173,18 @@ class App(QtWidgets.QMainWindow):
 
                     self.ui.running_status.setText('Status: Complete')
                     self.ui.Error_label.setText("Error: None")
+
+                #Running model evaluation every X steps as defined by user
+                # default 10,000
+                if (int(parse1[1]) % int(self.ui.eval_steps_num.text())) == 0:
+                    self.close()
+                    logger.info("Training Pause. Evaluation Starting...")
+                    self.model.eval_runner()
+
+                    #TODO emit and watch for end of evaluation then runmodel()
+                    time.sleep(10)
+                    self.runmodel()
+                    logger.info("Evaluation Complete. Restarting Model Training")
 
         # EffDet model type        
         if self.model_type == 4:
@@ -1105,7 +1192,7 @@ class App(QtWidgets.QMainWindow):
                 parse1 = info.split("{")
                 parse2 = parse1[1].split(":")
                 self.ui.Box_Class_Localize.setText("Classification")
-                self.ui.Box_loss_btn.setText("Classification Loss")
+                self.ui.box_loss_btn.setText("Classification Loss")
                 self.ui.BC_loc_loss_value.setText(str(parse2[1].replace(",","")))
                 self.bc_localization_rt.append(float(parse2[1].replace(",","")))
             
@@ -1146,6 +1233,18 @@ class App(QtWidgets.QMainWindow):
 
                     self.ui.running_status.setText('Status: Complete')
                     self.ui.Error_label.setText("Error: None")
+
+                #Running model evaluation every X steps as defined by user
+                # default 10,000
+                if (int(parse1[1]) % int(self.ui.eval_steps_num.text())) == 0:
+                    self.close()
+                    logger.info("Training Pause. Evaluation Starting...")
+                    self.model.eval_runner()
+
+                    #TODO emit and watch for end of evaluation then runmodel()
+                    time.sleep(10)
+                    self.runmodel()
+                    logger.info("Evaluation Complete. Restarting Model Training")
 
     # ================================================================== #
     # Function used to clear past data from graphs                       #

@@ -161,14 +161,14 @@ class pipeline_editor():
         # Also any mention of fine_tune_checkpoint in model     # 
         # pipeline.config needs to be removed/commented out     #
         #====================================================== #
-        pipeline_config.train_config.fine_tune_checkpoint = os.path.join(modelpath, 'checkpoint0', 'ckpt-0')
+        pipeline_config.train_config.fine_tune_checkpoint = os.path.join(modelpath, 'checkpoint0', 'ckpt-0').replace("\\","/")
         pipeline_config.train_config.fine_tune_checkpoint_type = "detection"
     
     
         pipeline_config.train_input_reader.label_map_path= lablepath
-        pipeline_config.train_input_reader.tf_record_input_reader.input_path[:] = [os.path.join(trainpath, 'train.record')]
+        pipeline_config.train_input_reader.tf_record_input_reader.input_path[:] = [os.path.join(trainpath, 'train.record').replace("\\","/")]
         pipeline_config.eval_input_reader[0].label_map_path = lablepath
-        pipeline_config.eval_input_reader[0].tf_record_input_reader.input_path[:] = [os.path.join(testpath, 'test.record')]
+        pipeline_config.eval_input_reader[0].tf_record_input_reader.input_path[:] = [os.path.join(testpath, 'test.record').replace("\\","/")]
 
 
         config_text = text_format.MessageToString(pipeline_config)                                                                                                                                                                                                        
@@ -182,17 +182,17 @@ class pipeline_editor():
     # ====================================== #        
     def open_configs_ssd(self, configpath, trainpath, testpath, lablepath, modelpath):
         config = config_util.get_configs_from_pipeline_file(configpath)
-
         pipeline_config = pipeline_pb2.TrainEvalPipelineConfig()
+
         with tf.io.gfile.GFile(configpath, "r") as f:                                                                                                                                                                                                                     
             proto_str = f.read()                                                                                                                                                                                                                                          
             text_format.Merge(proto_str, pipeline_config)  
 
-
+       
         # pipeline_config.model.XXXXXX need to be changed depending on model type #
-        pipeline_config.model.ssd.num_classes = self.num_classes
+        pipeline_config.model.ssd.num_classes = 42
         pipeline_config.train_config.batch_size = self.batch_size
-    
+
         pipeline_config.train_config.optimizer.momentum_optimizer.learning_rate.cosine_decay_learning_rate.learning_rate_base = self.learning_rate
         pipeline_config.train_config.optimizer.momentum_optimizer.learning_rate.cosine_decay_learning_rate.total_steps = self.num_steps
         pipeline_config.train_config.num_steps = self.num_steps
@@ -205,12 +205,11 @@ class pipeline_editor():
         pipeline_config.train_config.max_number_of_boxes = self.max_num_boxes
         pipeline_config.eval_config.max_num_boxes_to_visualize = self.max_num_boxes
         pipeline_config.eval_config.num_visualizations = self.max_num_boxes
-        pipeline_config.eval_input_reader.max_number_of_boxes = self.max_num_boxes
+        pipeline_config.eval_input_reader[0].max_number_of_boxes = self.max_num_boxes
     
         pipeline_config.model.ssd.post_processing.batch_non_max_suppression.max_total_detections = self.max_num_boxes
         pipeline_config.model.ssd.post_processing.batch_non_max_suppression.max_detections_per_class = self.max_num_boxes
-        pipeline_config.model.ssd.post_processing.batch_non_max_suppression.max_classes_per_detection = self.num_classes
-    
+        pipeline_config.model.ssd.post_processing.batch_non_max_suppression.max_classes_per_detection = self.max_num_boxes
     
         ###########REDUCE RAM LOAD#####################
         #       divide by 2 to reduce further         #
@@ -222,8 +221,6 @@ class pipeline_editor():
         #pipeline_config.train_input_reader.num_readers = 1
         ###############################################
     
-    
-    
         pipeline_config.train_config.fine_tune_checkpoint = os.path.join(modelpath, 'checkpoint0', 'ckpt-0')
         pipeline_config.train_config.fine_tune_checkpoint_type = "detection"
     
@@ -233,7 +230,7 @@ class pipeline_editor():
         pipeline_config.eval_input_reader[0].label_map_path = lablepath
         pipeline_config.eval_input_reader[0].tf_record_input_reader.input_path[:] = [os.path.join(testpath, 'test.record')]
 
-
+        print(pipeline_config)
         config_text = text_format.MessageToString(pipeline_config)                                                                                                                                                                                                        
         with tf.io.gfile.GFile(configpath, "wb") as f:                                                                                                                                                                                                                     
             f.write(config_text)  

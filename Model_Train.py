@@ -108,8 +108,8 @@ class model_trainer():
         
         self.Error_During_Training = False
 
-        self.scalefactorX = self.image_res/self.base_Hres
-        self.scalefactorY = self.image_res/self.base_Wres
+        self.scalefactorX = self.image_res/self.base_Wres
+        self.scalefactorY = self.image_res/self.base_Hres
         
         self.data = []
         self.targets = []
@@ -652,13 +652,33 @@ class model_trainer():
             
         try:
             if self.selector == 1:
-                self.pipe_edit.open_configs(self.configpth, self.trainpth, self.testpth, self.lablepth, self.modelpth)
+                try:
+                    self.pipe_edit.open_configs(self.configpth, self.trainpth, self.testpth, self.lablepth, self.modelpth)
+                except Exception as e:
+                    logger.error(f"Error Occured Writing to FRCNN pipeline file: {e}")
+                    print(f"Error Occured in FRCNN pipeline edit: {e}")
             elif self.selector == 2:
-                self.pipe_edit.open_configs_centernet(self.configpth, self.trainpth, self.testpth, self.lablepth, self.modelpth)
+                try:
+                    self.pipe_edit.open_configs_centernet(self.configpth, self.trainpth, self.testpth, self.lablepth, self.modelpth)
+                except Exception as e:
+                    logger.error(f"Error Occured Writing to Centernet pipeline file: {e}")
+                    print(f"Error Occured in Centernet pipeline edit: {e}")
             elif self.selector == 3:
-                self.pipe_edit.open_configs_ssd(self.configpth, self.trainpth, self.testpth, self.lablepth, self.modelpth)
+                try:
+                    self.pipe_edit.open_configs_ssd(self.configpth, self.trainpth, self.testpth, self.lablepth, self.modelpth)
+                except Exception as e:
+                    logger.error(f"Error Occured Writing to SSD pipeline file: {e}")
+                    print(f"Error Occured in SSD pipeline edit: {e}")
             elif self.selector == 4:
-                self.pipe_edit.open_configs_EffDet(self.configpth, self.trainpth, self.testpth, self.lablepth, self.modelpth)
+                try:
+                    self.pipe_edit.open_configs_EffDet(self.configpth, self.trainpth, self.testpth, self.lablepth, self.modelpth)
+                except Exception as e:
+                    logger.error(f"Error Occured Writing to EFFDET pipeline file: {e}")
+                    print(f"Error Occured in EFFDET pipeline edit: {e}")
+            else:
+                logger.error("Model selection incorrect value")
+                print("Model Selector incorrect value. Process Terminated")
+                return
         except Exception as e:
             logger.error(f"Error Editing Pipeline.config File: {e}")
         
@@ -670,7 +690,6 @@ class model_trainer():
         command = ["python", TRAINING_SCRIPT, "--model_dir=", self.modelpth, "--pipeline_config_path=", self.configpth, "--num_train_steps=", str(steps)]
         #NOTE for UNIX systems add preexec_fn=os.setsid to the subprocess arguments
         try:
-            #Used for .exe 
             '''self.runproc = subprocess.Popen([self.exepath, 
                         f"--model_dir={self.modelpth}", 
                         f"--pipeline_config_path={self.configpth}",
@@ -704,10 +723,8 @@ class model_trainer():
         TRAINING_SCRIPT = os.path.join(self.apimodelpth, 'research', 'object_detection', 'model_main_tf2.py')
         
         commandEval = "python {} --model_dir={} --pipeline_config_path={} --checkpoint_dir={}".format(TRAINING_SCRIPT, self.modelpth, self.configpth, self.modelpth)
-        self.eval = subprocess.Popen([commandEval], creationflags=subprocess.CREATE_NO_WINDOW)
+        self.eval = subprocess.Popen(self.exepath, creationflags=subprocess.CREATE_NO_WINDOW)
         #os.system(commandEval)
-        
-        print("Completed Evaluation \n")
         
     # Filling model pipeline.config parameters
     def fill_pipeline(self, num_classes, batch_size, learning_rate, max_num_boxes, obj_localization_weight, obj_classification_weight, num_steps):
