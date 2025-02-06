@@ -106,7 +106,8 @@ Once `MainGUI.py` opens the GUI, you can start training a model.
 
 ## Watch the output from the GUI carefully
 there may still be some missing imports. When running TensorFlow, it may not know to use the virtual environment. Solve these errors by simply installing the missing packages using `pip`. **Note**: These must be installed on the Python system (not in the virtual environment)!
-
+- Open command prompt
+` python -m pip install <package_name>`
 ### Common missing packages (Add these outside of Virtual Environment):
 
 -   `protobuf == 3.20.3`
