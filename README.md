@@ -11,7 +11,7 @@ Custom training of object detection models using TensorFlow.
 ## Training Instructions
 1. Gather all images to be used for training.
  1.1 Make sure all images are the same size (width and height in pix)
-2. Go to [VGG Annotation Tool](https://annotate.oƯicialstatistics.org/)
+2. Go to [VGG Annotation Tool](https://annotate.officialstatistics.org/)
 3. Add your images 
 ## Source Code Install Instructions
 
